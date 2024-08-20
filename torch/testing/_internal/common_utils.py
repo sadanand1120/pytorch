@@ -69,6 +69,7 @@ import torch.backends.cudnn
 import torch.backends.mkl
 import torch.backends.mps
 import torch.backends.xnnpack
+import torch.backends.kleidiai
 import torch.cuda
 from torch import Tensor
 from torch._C import ScriptDict, ScriptList  # type: ignore[attr-defined]
@@ -2054,6 +2055,20 @@ def skipIfNoXNNPACK(fn):
         else:
             fn(*args, **kwargs)
     return wrapper
+
+
+def skipIfNoKleidiAI(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not torch.backends.kleidiai.is_available():
+            raise unittest.SkipTest(
+                "KleidiAI must be enabled for these tests. Please build with USE_KLEIDIAI=1."
+            )
+        else:
+            fn(*args, **kwargs)
+
+    return wrapper
+
 
 def skipIfNoLapack(fn):
     @wraps(fn)
