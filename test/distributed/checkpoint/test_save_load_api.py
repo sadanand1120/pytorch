@@ -54,7 +54,7 @@ class TestSaveAndLoadAPI(DTensorTestBase):
                     model.state_dict(),
                     checkpoint_id=os.path.join(self.temp_dir, "second"),
                 )
-                sd = dcp.load(
+                dcp.load(
                     model.state_dict(),
                     checkpoint_id=os.path.join(self.temp_dir, "second"),
                 )
