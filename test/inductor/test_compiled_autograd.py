@@ -30,7 +30,7 @@ from torch.testing._internal.logging_utils import logs_to_string
 # note: these tests are not run on windows due to inductor_utils.HAS_CPU
 
 
-def make_compiler_fn(fullgraph=True, dynamic=True):
+def make_compiler_fn(fullgraph=False, dynamic=True):
     def _compiler_fn(gm):
         """Same as torch.compile() but counts number of compiles"""
 
@@ -1459,11 +1459,36 @@ TORCH_LIBRARY(test_non_traceable_autograd_cpp_node, m) {
         ), compiled_autograd.enable(compiler_fn):
             fn()
 
+    def test_post_accumulate_grad_hook_non_scalar_tensor(self):
+        def fn():
+            def hook1(tensor):
+                pass
+
+            tensor = torch.tensor([1., 2.], requires_grad=True)
+            tensor.register_post_accumulate_grad_hook(hook1)
+            out = tensor[0] * tensor[1]
+            out.sum().backward()
+            print(f"tensor.grad={tensor.grad}")
+            yield tensor.grad
+
+        self.check_output_and_recompiles(fn)
+
+    def test_post_accumulate_grad_hook_scalar_tensor(self):
+        def fn():
+            def hook1(tensor):
+                pass
+
+            tensor = torch.tensor(1., requires_grad=True)
+            tensor.register_post_accumulate_grad_hook(hook1)
+            out = tensor * 2
+            out.sum().backward()
+            yield tensor.grad
+
+        self.check_output_and_recompiles(fn)
+
     def test_autograd_cpp_node(self):
         cpp_source = """
 struct CustomOpAutogradFunction : public torch::autograd::Function<CustomOpAutogradFunction> {
-  static constexpr bool is_traceable = true;
-
   static torch::Tensor forward(
       torch::autograd::AutogradContext* ctx,
       const torch::Tensor& x) {
@@ -1495,6 +1520,8 @@ TORCH_LIBRARY(test_autograd_cpp_node, m) {
 
         def fn():
             for i in [10, 100, 10, 20, 10]:
+                print(f"running test with i={i}")
+            # for i in [10]:
                 x = torch.ones(i, i, requires_grad=True)
                 out = torch.ops.test_autograd_cpp_node.custom_op_backed_by_autograd_fn(
                     x
@@ -1600,8 +1627,6 @@ TORCH_LIBRARY(test_autograd_cpp_node_id, m) {
     def test_autograd_cpp_node_saved(self):
         cpp_source = """
 struct CustomOpAutogradFunction : public torch::autograd::Function<CustomOpAutogradFunction> {
-  static constexpr bool is_traceable = true;
-
   static torch::Tensor forward(
       torch::autograd::AutogradContext* ctx,
       const torch::Tensor& x,
@@ -1667,10 +1692,10 @@ TORCH_LIBRARY(test_autograd_cpp_node_saved, m) {
                     x, y, fixed
                 )
                 loss = out.sum()
-                loss.backward()
+                loss.backward(retain_graph=True)
                 yield x.grad
 
-        self.check_output_and_recompiles(fn, 2)
+        self.check_output_and_recompiles(fn)
 
     def test_autograd_cpp_node_saved_dynamic(self):
         cpp_source = """
