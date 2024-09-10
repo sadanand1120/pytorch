@@ -2,7 +2,7 @@
 import itertools
 import logging
 import typing
-from collections import Counter
+from collections import Counter, defaultdict
 from typing import Any, Dict, List, Set, Union
 
 import torch
